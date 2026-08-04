@@ -1,0 +1,25 @@
+# 修改内容：创建策略配置示例 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ----
+# CUPP 用户策略配置
+# 路径默认 /etc/strongswan/cupp/policy.yaml，可在 strongswan.conf
+# charon.plugins.user-policy.policy 中覆盖。
+#
+# Schema (flat):
+#   users:
+#     <name>:
+#       ip: <ipv4>          # 固定虚拟 IP
+#   pool:
+#     start: <ipv4>          # 动态地址池起始（含）
+#     end:   <ipv4>          # 动态地址池结束（含）
+
+users:
+  vip-admin:
+    ip: 10.10.10.50
+  vip-finance:
+    ip: 10.10.10.51
+  vip-ops:
+    ip: 10.10.10.52
+
+pool:
+  start: 10.10.10.100
+  end:   10.10.10.200
+# 修改内容：创建策略配置示例 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- end ----

@@ -1,0 +1,10 @@
+build.xml
+.project
+.classpath
+.settings
+bin
+.gitignore
+.git
+.idea
+.travis.yml
+LICENSE
