@@ -252,7 +252,7 @@ sweep `callback_job` 持有 plugin 实例的引用，卸载时通过 `terminatin
 
 ## 兼容性
 
-- strongSwan 5.8.x / 5.9.x
+- strongSwan >=5.8.2+
 - Linux（Debian/Ubuntu/CentOS 等）
 - 客户端：Windows 10/11 IKEv2、iOS/macOS IKEv2、strongSwan 客户端
 
