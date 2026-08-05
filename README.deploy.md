@@ -50,18 +50,18 @@ ls ~/strongswan-5.8.2/src/libcharon/daemon.h && echo "libcharon headers OK"
 #     在 Windows PowerShell 里执行以下 3 行：
 # ============================================================
 cd E:\AI\C++
-tar --format ustar -czf cupp.tar.gz -C e:\AI\C++ strongswan-plugin-vpn
+tar --format ustar -czf cupp.tar.gz -C e:\AI\C++ strongswan-plugin-vpn-cupp
 scp cupp.tar.gz root@你的服务器IP:~/
 
 # 服务器上解压（替换上面完成后执行）
 cd ~
 tar -xzf cupp.tar.gz
-ls ~/strongswan-plugin-vpn/plugin/CMakeLists.txt && echo "Project OK"
+ls ~/strongswan-plugin-vpn-cupp/plugin/CMakeLists.txt && echo "Project OK"
 
 # ============================================================
 # 第 3 步：编译
 # ============================================================
-cd ~/strongswan-plugin-vpn
+cd ~/strongswan-plugin-vpn-cupp
 rm -rf build
 mkdir build && cd build
 
@@ -78,9 +78,9 @@ ls -l plugin/libstrongswan-user-policy.so 2>/dev/null && echo "BUILD SUCCESS" ||
 重传操作：
 ```bash
 cd ~
-rm -rf strongswan-plugin-vpn
+rm -rf strongswan-plugin-vpn-cupp
 tar -xzf cupp.tar.gz
-cd strongswan-plugin-vpn
+cd strongswan-plugin-vpn-cupp
 mkdir build && cd build
 cmake -DSTRONGSWAN_SRC=$HOME/strongswan-5.8.2 .. 2>&1 | tee cmake.log
 make -j$(nproc) 2>&1 | tee build.log
@@ -104,7 +104,7 @@ ls -l plugin/libstrongswan-user-policy.so 2>/dev/null && echo "BUILD SUCCESS" ||
 ### 3.1 拷贝 .so 到 strongSwan 插件目录
 
 ```bash
-sudo cp ~/strongswan-plugin-vpn/build/plugin/libstrongswan-user-policy.so \
+sudo cp ~/strongswan-plugin-vpn-cupp/build/plugin/libstrongswan-user-policy.so \
         /usr/lib/ipsec/plugins/
 
 # 确认就位
@@ -500,7 +500,7 @@ cat /var/log/syslog | grep "CUPP" | tail -3
 ```
 
 > ⚠️ **重要**：每次执行 `ipsec rereadall` 前**必须先 `cd ~`**。
-> 常见错误：在 `~/strongswan-plugin-vpn/build` 目录执行 `rm -rf build` 后，
+> 常见错误：在 `~/strongswan-plugin-vpn-cupp/build` 目录执行 `rm -rf build` 后，
 > 当前 shell 的工作目录失效，`ipsec rereadall` 会报 `getcwd() failed` 且不生效。
 > 先 `cd ~` 即可避免。
 

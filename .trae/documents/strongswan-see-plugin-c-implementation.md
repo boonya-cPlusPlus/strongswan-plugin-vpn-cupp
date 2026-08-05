@@ -9,7 +9,7 @@
 ## 一、现状分析
 
 ### 1.1 项目当前状态
-- 仓库 `e:\AI\C++\strongswan-plugin-vpn` 目前仅含 `README.md`（ChatGPT 生成），无任何源码。
+- 仓库 `e:\AI\C++\strongswan-plugin-vpn-cupp` 目前仅含 `README.md`（ChatGPT 生成），无任何源码。
 - README 规定的目录结构与本次实现目标一致：`plugin/`、`config/`、`CMakeLists.txt`。`qt-console/` 属 v1.2 范围，本次 MVP 不实现。
 
 ### 1.2 README 与用户意图的差异

@@ -70,7 +70,7 @@ listener.ike_updown(up=FALSE) → release_by_uid(unique_id)
 ## 项目结构
 
 ```
-strongswan-plugin-vpn/
+strongswan-plugin-vpn-cupp/
 ├── CMakeLists.txt                 # 顶层构建入口
 ├── README.md                      # 本文件
 ├── README.deploy.md               # 详细部署说明
@@ -103,7 +103,7 @@ sudo apt install build-essential cmake pkg-config libyaml-dev libstrongswan
 
 # 方式 A：发行版有 libstrongswan-dev 包
 sudo apt install libstrongswan-dev
-cd strongswan-plugin-vpn
+cd strongswan-plugin-vpn-cupp
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
@@ -111,7 +111,7 @@ make -j$(nproc)
 # 方式 B：发行版无开发包（如 Ubuntu 20.04 focal），用源码头文件
 wget https://download.strongswan.org/strongswan-5.8.2.tar.bz2
 tar -xjf strongswan-5.8.2.tar.bz2
-cd strongswan-plugin-vpn
+cd strongswan-plugin-vpn-cupp
 mkdir build && cd build
 cmake -DSTRONGSWAN_SRC=$HOME/strongswan-5.8.2 ..
 make -j$(nproc)

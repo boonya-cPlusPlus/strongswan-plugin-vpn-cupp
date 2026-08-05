@@ -12,7 +12,7 @@
 ## 一、现状分析
 
 ### 1.1 仓库现状
-- `e:\AI\C++\strongswan-plugin-vpn` 仅含 `README.md`（已简化为 CUPP 规格），无源码。
+- `e:\AI\C++\strongswan-plugin-vpn-cupp` 仅含 `README.md`（已简化为 CUPP 规格），无源码。
 - README 模块结构未规定，沿用用户 /plan 消息指定的 9 文件结构。
 
 ### 1.2 README 关键约束（简化版，权威）
