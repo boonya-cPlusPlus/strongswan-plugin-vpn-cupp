@@ -1,5 +1,7 @@
 # CUPP — Charon User Policy Plugin
 
+![CUPP插件](images/logo.png)
+
 一个 strongSwan charon 插件，用 EAP 用户名驱动虚拟 IP 分配：VIP 用户始终拿到固定 IP，普通用户从插件自维护的动态地址池按需借还。**不依赖 FreeRADIUS / LDAP / 数据库**，策略由一份 YAML 描述。
 
 - 产物：`libstrongswan-user-policy.so`
