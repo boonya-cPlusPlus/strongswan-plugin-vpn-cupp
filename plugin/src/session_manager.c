@@ -1,14 +1,16 @@
 /* 修改内容：创建会话租约管理实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ---- */
+/* 修改内容：修复 hashtable.h 头文件路径（strongswan 5.8.2 中位于 collections/ 非 utils/） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- start ---- */
 #include "session_manager.h"
 #include "cupp_log.h"
 
-#include <utils/hashtable.h>
+#include <collections/hashtable.h>
 #include <utils/utils.h>
 #include <collections/linked_list.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+/* 修改内容：修复 hashtable.h 头文件路径（strongswan 5.8.2 中位于 collections/ 非 utils/） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- end ---- */
 
 typedef struct private_session_manager_t private_session_manager_t;
 
@@ -79,9 +81,11 @@ void lease_destroy(lease_t *lease)
 	free(lease);
 }
 
-METHOD(session_manager_t, bind, lease_t*,
+/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- start ---- */
+METHOD(session_manager_t, bind_lease, lease_t*,
 	private_session_manager_t *this, const char *username,
 	uint32_t unique_id, host_t *ip, bool fixed)
+/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- end ---- */
 {
 	lease_t *existing, *lease;
 
@@ -218,15 +222,26 @@ METHOD(session_manager_t, foreach_expiring, void,
 	snapshot->destroy(snapshot);
 }
 
+/* 修改内容：strongSwan 5.8.2 hashtable_t 无 count 成员，改用 enumerate 遍历计数 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- start ---- */
 METHOD(session_manager_t, count, int,
 	private_session_manager_t *this)
 {
-	int c;
+	int c = 0;
+	enumerator_t *e;
+	void *k;
+	lease_t *l;
+
 	pthread_mutex_lock(&this->mutex);
-	c = this->by_uid->count(this->by_uid);
+	e = this->by_uid->create_enumerator(this->by_uid);
+	while (e->enumerate(e, &k, &l))
+	{
+		c++;
+	}
+	e->destroy(e);
 	pthread_mutex_unlock(&this->mutex);
 	return c;
 }
+/* 修改内容：strongSwan 5.8.2 hashtable_t 无 count 成员，改用 enumerate 遍历计数 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- end ---- */
 
 session_manager_t *session_manager_create(void)
 {
@@ -234,15 +249,17 @@ session_manager_t *session_manager_create(void)
 
 	INIT(this,
 		.public = {
-			.bind = _bind,
+			.bind_lease = _bind_lease,
 			.migrate = _migrate,
 			.lookup_by_user = _lookup_by_user,
 			.unbind = _unbind,
 			.foreach_expiring = _foreach_expiring,
 			.count = _count,
 		},
-		.by_uid = hashtable_create(cupp_u32_hash, cupp_u32_eq),
-		.by_user = hashtable_create(cupp_str_hash, cupp_str_eq),
+/* 修改内容：hashtable_create 在 strongswan 5.8.2 中要求 3 参数（hash, equals, capacity），补 capacity=0 让库自选初始容量 修改人：pengjunlin 时间：2026-08-05 18:20:00 -- start ---- */
+		.by_uid = hashtable_create(cupp_u32_hash, cupp_u32_eq, 0),
+		.by_user = hashtable_create(cupp_str_hash, cupp_str_eq, 0),
+/* 修改内容：hashtable_create 在 strongswan 5.8.2 中要求 3 参数（hash, equals, capacity），补 capacity=0 让库自选初始容量 修改人：pengjunlin 时间：2026-08-05 18:20:00 -- end ---- */
 	);
 	pthread_mutex_init(&this->mutex, NULL);
 	return &this->public;

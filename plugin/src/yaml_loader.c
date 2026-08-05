@@ -1,4 +1,5 @@
 /* 修改内容：创建 YAML 加载实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ---- */
+/* 修改内容：修正 switch(event.type) 用枚举：event.type 是 yaml_event_type_t，必须用 *_EVENT 后缀（上游 libyaml 在 yaml_token_type_t 和 yaml_event_type_t 两个 enum 里分别定义了 *_TOKEN 和 *_EVENT 两套值，不能混用）。注意 yaml_event_type_t 里没有 BLOCK_/FLOW_ 前缀（只有 YAML_MAPPING_START_EVENT/YAML_MAPPING_END_EVENT），BLOCK_/FLOW_ 前缀只存在于 yaml_token_type_t 修改人：pengjunlin 时间：2026-08-05 19:30:00 -- start ---- */
 #include "yaml_loader.h"
 #include "cupp_log.h"
 
@@ -7,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+/* 修改内容：修正 switch(event.type) 用枚举：event.type 是 yaml_event_type_t，必须用 *_EVENT 后缀（上游 libyaml 在 yaml_token_type_t 和 yaml_event_type_t 两个 enum 里分别定义了 *_TOKEN 和 *_EVENT 两套值，不能混用）。注意 yaml_event_type_t 里没有 BLOCK_/FLOW_ 前缀（只有 YAML_MAPPING_START_EVENT/YAML_MAPPING_END_EVENT），BLOCK_/FLOW_ 前缀只存在于 yaml_token_type_t 修改人：pengjunlin 时间：2026-08-05 19:30:00 -- end ---- */
 
 /*
  * libyaml 事件流解析 policy.yaml 的受限子集：
@@ -64,11 +66,13 @@ int yaml_load_policy(const char *path, fixed_pool_t *fixed,
 		switch (event.type)
 		{
 			case YAML_STREAM_END_EVENT:
-				done = 1;
-				break;
+			done = 1;
+			break;
 
-			case YAML_BLOCK_MAPPING_START_EVENT:
-				if (st == S_TOP && pending)
+		/* 修改内容：YAML_BLOCK_MAPPING_START_EVENT 在 yaml_event_type_t 中不存在（event 枚举不区分 block/flow），改为 YAML_MAPPING_START_EVENT 修改人：pengjunlin 时间：2026-08-05 19:30:00 -- start ---- */
+		case YAML_MAPPING_START_EVENT:
+			/* 修改内容：YAML_BLOCK_MAPPING_START_EVENT 在 yaml_event_type_t 中不存在（event 枚举不区分 block/flow），改为 YAML_MAPPING_START_EVENT 修改人：pengjunlin 时间：2026-08-05 19:30:00 -- end ---- */
+			if (st == S_TOP && pending)
 				{
 					if (streq(pending, "users"))
 					{

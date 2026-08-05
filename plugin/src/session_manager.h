@@ -36,8 +36,10 @@ struct session_manager_t {
 	 * @param ip		所有权转移给 lease（fixed=fixed_pool.clone，dynamic=pool.acquire）
 	 * @return			绑定的 lease（借用，内部持有）；失败返回 NULL（ip 已被销毁）
 	 */
-	lease_t *(*bind)(session_manager_t *this, const char *username,
+	/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- start ---- */
+	lease_t *(*bind_lease)(session_manager_t *this, const char *username,
 					 uint32_t unique_id, host_t *ip, bool fixed);
+	/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- end ---- */
 
 	/**
 	 * 迁移现有租约的 unique_id 到新值（rekey 场景，复用原 ip）。

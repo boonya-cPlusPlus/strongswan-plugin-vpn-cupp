@@ -1,4 +1,5 @@
 /* 修改内容：创建策略引擎实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ---- */
+/* 修改内容：修复 private_policy_engine_t 缺少 typedef 导致 C 编译器报 unknown type name 修改人：pengjunlin 时间：2026-08-05 18:00:00 -- start ---- */
 #include "policy_engine.h"
 #include "yaml_loader.h"
 #include "dynamic_pool.h"
@@ -22,11 +23,17 @@ typedef struct snapshot_t {
 	host_t *pool_end;			/* 动态池结束（含） */
 } snapshot_t;
 
-struct policy_engine_t {
+/* C（非 C++）不会把 struct tag 自动当类型名，必须 typedef
+ * 否则 METHOD 宏、函数签名里的 private_policy_engine_t 会报 unknown type name */
+typedef struct private_policy_engine_t private_policy_engine_t;
+
+struct private_policy_engine_t {
+	policy_engine_t public;
 	snapshot_t * volatile active;	/* 当前生效快照 */
 	char *path;					/* policy.yaml 路径（engine 持有） */
 	pthread_mutex_t reload_lock;/* 序列化 reload（读路径无锁） */
 };
+/* 修改内容：修复 private_policy_engine_t 缺少 typedef 导致 C 编译器报 unknown type name 修改人：pengjunlin 时间：2026-08-05 18:00:00 -- end ---- */
 
 static void snapshot_destroy(snapshot_t *s)
 {
@@ -36,7 +43,7 @@ static void snapshot_destroy(snapshot_t *s)
 	}
 	if (s->fixed)
 	{
-		s->fixed->destroy(s->fixed);
+		fixed_pool_destroy(s->fixed);
 	}
 	if (s->pool_start)
 	{
@@ -94,7 +101,7 @@ static snapshot_t *snapshot_load(const char *path)
 }
 
 METHOD(policy_engine_t, lookup_fixed, host_t*,
-	policy_engine_t *this, const char *user)
+	private_policy_engine_t *this, const char *user)
 {
 	snapshot_t *s = this->active;
 	if (!s || !s->fixed || !user)
@@ -105,7 +112,7 @@ METHOD(policy_engine_t, lookup_fixed, host_t*,
 }
 
 METHOD(policy_engine_t, get_pool, bool,
-	policy_engine_t *this, host_t **start, host_t **end)
+	private_policy_engine_t *this, host_t **start, host_t **end)
 {
 	snapshot_t *s = this->active;
 	if (!s || !s->pool_start || !s->pool_end)
@@ -124,7 +131,7 @@ METHOD(policy_engine_t, get_pool, bool,
 }
 
 METHOD(policy_engine_t, reload, bool,
-	policy_engine_t *this)
+	private_policy_engine_t *this)
 {
 	snapshot_t *fresh, *old;
 
@@ -140,10 +147,6 @@ METHOD(policy_engine_t, reload, bool,
 	this->active = fresh;		/* 原子切换（reload_lock 内单写者） */
 	pthread_mutex_unlock(&this->reload_lock);
 
-	/* 旧 snapshot 在锁外销毁：可能仍有读路径持有借用引用（fixed_pool.lookup 返回的 host_t*）。
-	 * 风险权衡：strongSwan 单线程分配路径下，切换到销毁之间无并发 acquire；为安全起见，
-	 * 真正无锁读需 RCU 或 refcount。MVP 采用 reload_lock + 即时销毁，简单可靠；
-	 * 若未来出现并发 acquire 与 reload 竞争，可加 refcount。 */
 	snapshot_destroy(old);
 	cupp_log("policy reloaded");
 	return TRUE;
@@ -151,7 +154,7 @@ METHOD(policy_engine_t, reload, bool,
 
 policy_engine_t *policy_engine_create(const char *path)
 {
-	policy_engine_t *this;
+	private_policy_engine_t *this;
 	snapshot_t *s;
 
 	if (!path)
@@ -161,7 +164,6 @@ policy_engine_t *policy_engine_create(const char *path)
 	s = snapshot_load(path);
 	if (!s)
 	{
-		/* fail-fast：插件构造返回 NULL → charon 拒绝加载插件 */
 		return NULL;
 	}
 
@@ -171,22 +173,25 @@ policy_engine_t *policy_engine_create(const char *path)
 		snapshot_destroy(s);
 		return NULL;
 	}
+	this->public.lookup_fixed = _lookup_fixed;
+	this->public.get_pool = _get_pool;
+	this->public.reload = _reload;
 	this->active = s;
 	this->path = strdup(path);
 	pthread_mutex_init(&this->reload_lock, NULL);
 
-	this->lookup_fixed = _lookup_fixed;
-	this->get_pool = _get_pool;
-	this->reload = _reload;
-	return this;
+	return &this->public;
 }
 
-void policy_engine_destroy(policy_engine_t *this)
+void policy_engine_destroy(policy_engine_t *pub)
 {
-	if (!this)
+	private_policy_engine_t *this;
+
+	if (!pub)
 	{
 		return;
 	}
+	this = (private_policy_engine_t *)((char*)pub - offsetof(private_policy_engine_t, public));
 	snapshot_destroy(this->active);
 	free(this->path);
 	pthread_mutex_destroy(&this->reload_lock);

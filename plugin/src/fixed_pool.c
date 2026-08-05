@@ -1,11 +1,13 @@
 /* 修改内容：创建固定 IP 池实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ---- */
+/* 修改内容：修复 hashtable.h 头文件路径（strongswan 5.8.2 中位于 collections/ 非 utils/） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- start ---- */
 #include "fixed_pool.h"
 #include "cupp_log.h"
 
-#include <utils/hashtable.h>
+#include <collections/hashtable.h>
 #include <utils/utils.h>
 #include <stdlib.h>
 #include <string.h>
+/* 修改内容：修复 hashtable.h 头文件路径（strongswan 5.8.2 中位于 collections/ 非 utils/） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- end ---- */
 
 typedef struct private_fixed_pool_t private_fixed_pool_t;
 
@@ -82,7 +84,9 @@ fixed_pool_t *fixed_pool_create(void)
 			.add = _add,
 			.count = _count,
 		},
-		.users = hashtable_create(cupp_str_hash, cupp_str_eq),
+/* 修改内容：hashtable_create 在 strongswan 5.8.2 中要求 3 参数（hash, equals, capacity），补 capacity=0 让库自选初始容量 修改人：pengjunlin 时间：2026-08-05 18:20:00 -- start ---- */
+		.users = hashtable_create(cupp_str_hash, cupp_str_eq, 0),
+/* 修改内容：hashtable_create 在 strongswan 5.8.2 中要求 3 参数（hash, equals, capacity），补 capacity=0 让库自选初始容量 修改人：pengjunlin 时间：2026-08-05 18:20:00 -- end ---- */
 	);
 	return &this->public;
 }

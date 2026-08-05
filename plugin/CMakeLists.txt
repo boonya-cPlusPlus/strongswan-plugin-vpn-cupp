@@ -24,18 +24,16 @@ if(DEFINED STRONGSWAN_SRC AND EXISTS "${STRONGSWAN_SRC}/src/libstrongswan/librar
         "${STRONGSWAN_SRC}/src/libcharon"
         "${STRONGSWAN_SRC}/src"
     )
-    # 链接库：Ubuntu 20.04 系统已装好的 libstrongswan.so 运行库
+    # 链接库：Debian/Ubuntu 把 libstrongswan.so 装在 /usr/lib/ipsec（非标准路径）
+    # 必须显式指定 PATHS，find_library 默认不搜这里
     find_library(STRONGSWAN_LIB
         NAMES strongswan
-        PATHS /usr/lib/x86_64-linux-gnu /usr/lib /usr/local/lib
-        NO_DEFAULT_PATH
+        PATHS /usr/lib/ipsec /usr/lib/x86_64-linux-gnu /usr/lib /usr/local/lib
     )
-    if(NOT STRONGSWAN_LIB)
-        find_library(STRONGSWAN_LIB NAMES strongswan)
-    endif()
     if(NOT STRONGSWAN_LIB)
         message(FATAL_ERROR "CUPP: 找不到 libstrongswan.so，先 apt install libstrongswan")
     endif()
+    message(STATUS "CUPP: libstrongswan -> ${STRONGSWAN_LIB}")
     set(STRONGSWAN_LIBRARIES "${STRONGSWAN_LIB}")
     set(STRONGSWAN_LIBRARY_DIRS "")
 else()
@@ -73,12 +71,26 @@ set_target_properties(charon-user-policy PROPERTIES
     PREFIX "lib"
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
+    C_EXTENSIONS ON
     POSITION_INDEPENDENT_CODE ON
 )
 
 target_compile_options(charon-user-policy PRIVATE
     -Wall -Wextra -Wno-unused-parameter
 )
+
+# STRONGSWAN_SRC 模式下，strongswan 源码要求先 include config.h（由 ./configure 生成）
+# 并且必须定义 _GNU_SOURCE 才能让 <sys/types.h> 提供 u_int/u_char 类型
+# 用 cupp_force_include.h 做包装：先 define _GNU_SOURCE，再 include config.h，最后补 sys/types.h
+if(STRONGSWAN_MODE STREQUAL "SRC")
+    # 把 strongSWAN 源码根加入 include 路径，使 #include "config.h" 能找到
+    target_include_directories(charon-user-policy PRIVATE "${STRONGSWAN_SRC}")
+    target_compile_definitions(charon-user-policy PRIVATE _GNU_SOURCE)
+    target_compile_options(charon-user-policy PRIVATE
+        -include "${CMAKE_CURRENT_SOURCE_DIR}/src/cupp_force_include.h"
+    )
+    message(STATUS "CUPP: force-include cupp_force_include.h, _GNU_SOURCE defined")
+endif()
 
 target_link_libraries(charon-user-policy
     ${STRONGSWAN_LIBRARIES}

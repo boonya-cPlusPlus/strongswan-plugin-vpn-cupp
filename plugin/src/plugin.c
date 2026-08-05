@@ -1,7 +1,7 @@
 /* 修改内容：创建插件入口实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- start ---- */
-#include <strongswan.h>
-#include <daemon.h>						/* charon, lib */
+/* 修改内容：5.8.x 无 strongswan.h convenience header，改用具体头 文件 修改人：pengjunlin 时间：2026-08-05 00:00:00 -- start ---- */
 #include <library.h>
+#include <daemon.h>
 #include <plugins/plugin.h>
 #include <plugins/plugin_feature.h>
 #include <attributes/attribute_manager.h>
@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+/* 修改内容：5.8.x 无 strongswan.h convenience header，改用具体头 文件 修改人：pengjunlin 时间：2026-08-05 00:00:00 -- end ---- */
 
 #include "policy_engine.h"
 #include "ip_allocator.h"
@@ -98,8 +99,10 @@ static void plugin_unref(private_user_policy_plugin_t *this)
 
 /* ---- sweep job ---- */
 
-static job_requeue_t sweep_cb(private_user_policy_plugin_t *this)
+static job_requeue_t sweep_cb(void *ctx)
 {
+	private_user_policy_plugin_t *this = ctx;
+
 	if (this->terminating)
 	{
 		return JOB_REQUEUE_NONE;
@@ -117,13 +120,15 @@ static job_requeue_t sweep_cb(private_user_policy_plugin_t *this)
 	return JOB_RESCHEDULE_MS((u_int)this->sweep_interval * 1000);
 }
 
-static bool sweep_cancel(private_user_policy_plugin_t *this)
+static bool sweep_cancel(void *ctx)
 {
+	private_user_policy_plugin_t *this = ctx;
 	return this->terminating;
 }
 
-static void sweep_cleanup(private_user_policy_plugin_t *this)
+static void sweep_cleanup(void *ctx)
 {
+	private_user_policy_plugin_t *this = ctx;
 	/* job 生命周期结束（cancel 或 REQUEUE_NONE）时释放 job 持有的 ref */
 	plugin_unref(this);
 }
@@ -139,10 +144,12 @@ METHOD(plugin_t, get_name, char*,
 /*
  * 特征注册回调：reg=TRUE 时注册 provider/listener 并启动 sweep job；
  * reg=FALSE 时逆序注销并标记 terminating（sweep job 自行停止并 cleanup）。
+ * plugin_feature_callback_t 签名：bool (*)(plugin_t *plugin, plugin_feature_t *feature, bool reg, void *cb_data)
  */
-static bool plugin_cb(private_user_policy_plugin_t *this,
+static bool plugin_cb(plugin_t *plugin,
 					  plugin_feature_t *feature, bool reg, void *data)
 {
+	private_user_policy_plugin_t *this = (private_user_policy_plugin_t *)plugin;
 	callback_job_t *job;
 
 	(void)feature; (void)data;

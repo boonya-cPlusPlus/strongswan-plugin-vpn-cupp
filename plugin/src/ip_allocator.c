@@ -99,18 +99,54 @@ METHOD(attribute_provider_t, acquire_address, host_t*,
 
 	(void)requested;	/* CUPP 按策略分配，忽略客户端请求的特定地址 */
 
-	if (!pools_include(this, pools) || !ike_sa)
+	/* 诊断日志：打印 charon 传入的 pools 内容 */
 	{
-		return NULL;	/* 非本插件池，交由其他 provider */
+		enumerator_t *e;
+		char *name;
+		u_int count = 0;
+		if (pools)
+		{
+			count = pools->get_count(pools);
+		}
+		cupp_log("acquire ENTER: pools_count=%u", count);
+		if (pools)
+		{
+			e = pools->create_enumerator(pools);
+			while (e->enumerate(e, &name))
+			{
+				cupp_log("  pool name=[%s] our_pool=[%s] match=%d",
+						 name ? name : "(null)",
+						 this->pool_name,
+						 (name && streq(name, this->pool_name)));
+			}
+			e->destroy(e);
+		}
 	}
 
+	if (!pools_include(this, pools) || !ike_sa)
+	{
+		cupp_warn("acquire: pools_include=FALSE or ike_sa=NULL, skipped");
+		return NULL;	/* 非本插件池，交由其他 provider */
+	}
+	cupp_log("acquire: pools_include=TRUE, proceeding");
+
+	/* 修改内容：username 为 NULL 时回退动态池（用占位名 bind_lease），避免连接直接失败 修改人：pengjunlin 时间：2026-08-05 16:00:00 -- start ---- */
 	username = identity_get_username(ike_sa);
+	uid = ike_sa->get_unique_id(ike_sa);
+
+	/* 无法提取字符串用户名：不能查固定表，但仍走动态池让连接成功 */
 	if (!username)
 	{
-		cupp_warn("acquire: no identity, no IP assigned");
-		return NULL;
+		char anon_buf[32];
+		cupp_warn("acquire: no string identity, falling back to dynamic pool");
+		snprintf(anon_buf, sizeof(anon_buf), "anon-%u", uid);
+		username = strdup(anon_buf);
+		if (!username)
+		{
+			/* OOM */
+			return NULL;
+		}
 	}
-	uid = ike_sa->get_unique_id(ike_sa);
 
 	pthread_mutex_lock(&this->lock);
 
@@ -128,17 +164,24 @@ METHOD(attribute_provider_t, acquire_address, host_t*,
 	}
 
 	/* 新连接：先查固定 IP，否则动态池 */
-	fixed_src = this->policy->lookup_fixed(this->policy, username);
-	if (fixed_src)
 	{
-		ip = fixed_src->clone(fixed_src);	/* lease 拥有此克隆 */
-		is_fixed = TRUE;
+		bool is_anon = (strncmp(username, "anon-", 5) == 0);
+		if (!is_anon)
+		{
+			fixed_src = this->policy->lookup_fixed(this->policy, username);
+			if (fixed_src)
+			{
+				ip = fixed_src->clone(fixed_src);	/* lease 拥有此克隆 */
+				is_fixed = TRUE;
+			}
+		}
 	}
-	else if (this->dyn)
+	if (!ip && this->dyn)
 	{
 		ip = this->dyn->acquire(this->dyn);	/* 所有权转入 lease */
 		is_fixed = FALSE;
 	}
+	/* 修改内容：username 为 NULL 时回退动态池（用占位名 bind_lease），避免连接直接失败 修改人：pengjunlin 时间：2026-08-05 16:00:00 -- end ---- */
 
 	if (!ip)
 	{
@@ -150,7 +193,9 @@ METHOD(attribute_provider_t, acquire_address, host_t*,
 		return NULL;
 	}
 
-	lease = this->sessions->bind(this->sessions, username, uid, ip, is_fixed);
+	/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- start ---- */
+	lease = this->sessions->bind_lease(this->sessions, username, uid, ip, is_fixed);
+	/* 修改内容：bind 重命名为 bind_lease，避免与 POSIX socket bind() 冲突 修改人：pengjunlin 时间：2026-08-05 19:45:00 -- end ---- */
 	if (!lease)
 	{
 		/* bind 失败已销毁 ip；返回 NULL 让连接失败 */
@@ -289,6 +334,7 @@ ip_allocator_t *ip_allocator_create(policy_engine_t *policy, const char *pool_na
 	return &this->public;
 }
 
+/* 修改内容：修复 destroy 调用方式：dynamic_pool_t / session_manager_t / fixed_pool_t 结构体里没有 ->destroy 成员，必须用同名独立函数（与 strongswan 5.8.2 的 fixed_pool_destroy 设计一致） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- start ---- */
 void ip_allocator_destroy(ip_allocator_t *this)
 {
 	private_ip_allocator_t *p = (private_ip_allocator_t*)this;
@@ -299,11 +345,12 @@ void ip_allocator_destroy(ip_allocator_t *this)
 	}
 	if (p->dyn)
 	{
-		p->dyn->destroy(p->dyn);
+		dynamic_pool_destroy(p->dyn);
 	}
-	p->sessions->destroy(p->sessions);
+	session_manager_destroy(p->sessions);
 	free(p->pool_name);
 	pthread_mutex_destroy(&p->lock);
 	free(p);
 }
+/* 修改内容：修复 destroy 调用方式：dynamic_pool_t / session_manager_t / fixed_pool_t 结构体里没有 ->destroy 成员，必须用同名独立函数（与 strongswan 5.8.2 的 fixed_pool_destroy 设计一致） 修改人：pengjunlin 时间：2026-08-05 18:10:00 -- end ---- */
 /* 修改内容：创建 IP 分配核心实现 修改人：pengjunlin 时间：2026-08-04 16:42:14 -- end ---- */
