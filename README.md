@@ -74,7 +74,7 @@ strongswan-plugin-vpn-cupp/
 ├── CMakeLists.txt                 # 顶层构建入口
 ├── README.md                      # 本文件
 ├── README.deploy.md               # 详细部署说明
-├── config/
+├── etc/ipsec.d/
 │   └── policy.yaml                # 策略配置示例
 └── plugin/
     ├── CMakeLists.txt             # 插件构建（支持 pkg-config 与源码头文件两种模式）
