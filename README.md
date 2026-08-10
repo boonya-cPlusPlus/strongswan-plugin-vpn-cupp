@@ -74,7 +74,7 @@ strongswan-plugin-vpn-cupp/
 ├── CMakeLists.txt                 # 顶层构建入口
 ├── README.md                      # 本文件
 ├── README.deploy.md               # 详细部署说明
-├── etc/ipsec.d/
+├── etc/ipsec.d/cupp/
 │   └── policy.yaml                # 策略配置示例
 └── plugin/
     ├── CMakeLists.txt             # 插件构建（支持 pkg-config 与源码头文件两种模式）
@@ -125,7 +125,7 @@ make -j$(nproc)
 
 ```bash
 sudo make install                                              # 装 .so 与示例 policy.yaml
-sudo cp config/policy.yaml /etc/strongswan/cupp/policy.yaml    # 或就地编辑
+sudo cp etc/ipsec.d/cupp/policy.yaml /etc/strongswan/cupp/policy.yaml    # 或就地编辑
 
 # strongswan.conf 加载插件
 # swanctl.conf 连接配置 pools = cupp
