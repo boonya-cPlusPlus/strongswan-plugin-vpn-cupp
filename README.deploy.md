@@ -281,19 +281,22 @@ secrets {
 sudo ipsec restart          # 或 sudo systemctl restart strongswan
 ```
 
-> **重要**：推荐用 `sudo systemctl restart strongswan` 而非 `sudo ipsec restart`。
-> `systemctl restart strongswan` 会通过 systemd 自动触发 `swanctl --load-conns/certs/secrets`，
-> 连接配置在 charon 启动后自动加载。
+> **重要（踩坑修正）**：Ubuntu 20.04 上**没有** `strongswan.service`，只有
+> `strongswan-starter.service`（`ExecStart=/usr/sbin/ipsec start --nofork`）。
+> 无论用 `sudo systemctl restart strongswan-starter` 还是 `sudo ipsec restart`，
+> charon 启动后**都不会**自动加载 swanctl.conf 中的连接配置。
 >
-> 若用 `ipsec restart`，charon 启动后**不会**自动加载 swanctl.conf，Windows 客户端连接时
-> 会被 `NO_PROPOSAL_CHOSEN` 拒绝（日志：`no IKE config found for ...`）。
-> 需手动执行：
+> **现象**：Windows 客户端连接被 `NO_PROPOSAL_CHOSEN` 拒绝，服务器日志：
+> `no IKE config found for <server-ip>...<client-ip>, sending NO_PROPOSAL_CHOSEN`
+> （阿里云自动重启后必现，因为 systemd 只拉起了 charon 进程，swanctl 连接定义为空）。
+>
+> **手动修复（临时）**：
 > ```bash
-> sudo swanctl --load-conns
-> sudo swanctl --load-certs
-> sudo swanctl --load-creds    # strongSwan 5.8.2 用 --load-creds（不是 --load-secrets）
+> sudo swanctl --load-all       # 5.8.2 无 --load-certs，用 --load-all 一次全加载
+> sudo swanctl --list-conns     # 验证连接定义已出现
 > ```
-> 或确认 `/etc/strongswan.d/charon/swanctl.conf` 中 `load = yes`（启用 vici 自动加载）。
+>
+> **永久修复（推荐）**：配置 systemd drop-in 开机自动 `swanctl --load-all`，见 §5.1.2。
 
 #### 5.1.1 排查 swanctl 连接未加载
 
@@ -306,10 +309,8 @@ cat /var/log/syslog | grep "no IKE config found\|selected peer config" | tail -5
 # 若输出 "no IKE config found" → swanctl.conf 未加载
 # 若输出 "selected peer config 'windows-client'" → 配置已加载，问题在别处
 
-# 2. 手动加载连接
-sudo swanctl --load-conns
-sudo swanctl --load-certs
-sudo swanctl --load-creds      # strongSwan 5.8.2 用 --load-creds
+# 2. 手动加载连接（5.8.2 无 --load-certs，用 --load-all 一次全加载）
+sudo swanctl --load-all
 
 # 3. 验证连接列表
 swanctl --list-conns
@@ -319,6 +320,54 @@ swanctl --list-conns
 cat /etc/strongswan.d/charon/swanctl.conf
 # 应包含：load = yes
 ```
+
+#### 5.1.2 配置开机自动加载 swanctl 连接（永久修复）
+
+阿里云 ECS 自动重启后，`strongswan-starter.service` 只启动 charon 进程，**不会**自动执行
+`swanctl --load-all`，导致 swanctl.conf 中的连接定义为空，Windows 客户端被
+`NO_PROPOSAL_CHOSEN` 拒绝。通过 systemd drop-in override 解决：
+
+**第 1 步：补齐 swanctl 插件配置**
+
+```bash
+sudo mkdir -p /etc/strongswan.d/charon
+sudo tee /etc/strongswan.d/charon/swanctl.conf > /dev/null << 'EOF'
+swanctl {
+    load = yes
+}
+EOF
+```
+
+**第 2 步：创建 systemd drop-in override**
+
+```bash
+sudo mkdir -p /etc/systemd/system/strongswan-starter.service.d
+sudo tee /etc/systemd/system/strongswan-starter.service.d/10-swanctl-load-all.conf > /dev/null << 'EOF'
+[Unit]
+Wants=network-online.target
+
+[Service]
+# ipsec start --nofork 返回后，sleep 2 再 load-all，
+# 给 charon/vici 留启动时间；|| true 保证失败不影响主服务状态
+ExecStartPost=/bin/sh -c 'sleep 2; /usr/sbin/swanctl --load-all || true'
+TimeoutStartSec=30
+EOF
+```
+
+> 用 drop-in（`/etc/systemd/system/...service.d/`）而非直接改
+> `/lib/systemd/system/strongswan-starter.service`，避免 apt upgrade 强Swan时被覆盖。
+
+**第 3 步：重载并验证**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart strongswan-starter
+sleep 5
+sudo swanctl --list-conns     # 应输出连接定义（ike-vpn / windows-client 等）
+```
+
+验证通过后，每次阿里云重启或 `systemctl restart strongswan-starter` 都会自动加载
+swanctl 连接配置，无需再手动执行 `swanctl --load-all`。
 
 ### 5.2 Windows IKEv2 客户端登录
 
